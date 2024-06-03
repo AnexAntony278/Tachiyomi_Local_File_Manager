@@ -1,6 +1,9 @@
+import 'package:image/image.dart' as img;
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:pdf_render/pdf_render.dart';
 import 'package:pdf_to_tach/themes/app_themes.dart';
 
 class FormCard extends StatefulWidget {
@@ -99,12 +102,9 @@ class _FormCardState extends State<FormCard> {
           String path = result.files.first.path!;
           return File(path);
         }
-      } else {
-        return null;
       }
     } catch (e) {
       debugPrint(e.toString());
-      return null;
     }
     return null;
   }
@@ -130,8 +130,28 @@ class _FormCardState extends State<FormCard> {
 
   void createBook() async {
     debugPrint(
-        "Create \n Book :$name\n Destination: $destinationPath\n PDF: $pdfFile");
-    Directory directory = Directory('${destinationPath!}/$name');
-    directory.create();
+        "Create\nBook: $name\nDestination: $destinationPath\nPDF: $pdfFile");
+    try {
+      Directory directory = Directory('${destinationPath!}/$name/chapter');
+      await directory.create(recursive: true);
+      PdfDocument document = await PdfDocument.openFile(pdfFile!.path);
+      PdfPage page = await document.getPage(1);
+      PdfPageImage pageImage = await page.render(
+        width: page.width.toInt(),
+        height: page.height.toInt(),
+        backgroundFill: false,
+      );
+      img.Image image = img.Image.fromBytes(
+        width: pageImage.width,
+        height: pageImage.height,
+        bytes: pageImage.pixels.buffer,
+      );
+      final file = File('${directory.path}/cover.txt');
+
+      pageImage.dispose();
+      document.dispose();
+    } catch (e) {
+      debugPrint(e.toString());
+    }
   }
 }
