@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf_render/pdf_render.dart';
 import 'package:pdf_to_tach/themes/app_themes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FormCard extends StatefulWidget {
   const FormCard({
@@ -25,6 +26,16 @@ class _FormCardState extends State<FormCard> {
   String? destinationPath = '';
   String? name;
   String errorMessage = '';
+
+  @override
+  void initState() {
+    final prefs = SharedPreferences.getInstance();
+    prefs.then((value) {
+      destinationPath = value.getString('localpath');
+    });
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -47,7 +58,9 @@ class _FormCardState extends State<FormCard> {
                     controller: _pdfFieldController,
                     onTap: () async {
                       pdfFile = await showPDFPicker(context);
-                      _pdfFieldController.text = pdfFile!.path.split('/').last;
+                      _pdfFieldController.text = (pdfFile != null)
+                          ? pdfFile!.path.split('/').last
+                          : '';
                     },
                   ),
                   const Text(
@@ -58,7 +71,8 @@ class _FormCardState extends State<FormCard> {
                     controller: _destinationPathFieldController,
                     onTap: () async {
                       destinationPath = await showPathPicker(context);
-                      _destinationPathFieldController.text = destinationPath!;
+                      _destinationPathFieldController.text =
+                          destinationPath ?? '';
                     },
                   ),
                   const Text(
@@ -111,6 +125,8 @@ class _FormCardState extends State<FormCard> {
 
   Future<String?> showPathPicker(context) async {
     String? path = await FilePicker.platform.getDirectoryPath();
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('localpath', path ?? '');
     return path;
   }
 
@@ -118,6 +134,7 @@ class _FormCardState extends State<FormCard> {
     name = _nameFieldController.text;
     if (pdfFile == null ||
         destinationPath == null ||
+        destinationPath == '' ||
         destinationPath!.split('/').last != 'local' ||
         name == null ||
         name == '') {
@@ -132,22 +149,22 @@ class _FormCardState extends State<FormCard> {
     debugPrint(
         "Create\nBook: $name\nDestination: $destinationPath\nPDF: $pdfFile");
     try {
-      Directory directory = Directory('${destinationPath!}/$name/chapter');
+      Directory directory = Directory('${destinationPath!}/$name');
       await directory.create(recursive: true);
       PdfDocument document = await PdfDocument.openFile(pdfFile!.path);
       PdfPage page = await document.getPage(1);
       PdfPageImage pageImage = await page.render(
-        width: page.width.toInt(),
-        height: page.height.toInt(),
-        backgroundFill: false,
-      );
+          width: page.width.toInt() * 10,
+          height: page.height.toInt() * 10,
+          backgroundFill: false,
+          allowAntialiasingIOS: true);
       img.Image image = img.Image.fromBytes(
         width: pageImage.width,
         height: pageImage.height,
         bytes: pageImage.pixels.buffer,
       );
-      final file = File('${directory.path}/cover.txt');
-
+      final file = File('${directory.path}/cover.png');
+      await file.writeAsBytes(img.encodePng(image));
       pageImage.dispose();
       document.dispose();
     } catch (e) {
